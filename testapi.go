@@ -2,15 +2,21 @@ package main
 
 import(
   "encoding/json"
+  "encoding/xml"
   "net/http"
   "fmt"
   "os"
 	"encoding/csv"
   "io/ioutil"
+  "database/sql"
+  "log"
+  _ "github.com/mattn/go-sqlite3"
 //"strings"
 	"time"
   "strconv"
 )
+
+
 
 /*type Object struct {
     Name string
@@ -50,27 +56,129 @@ type attribute struct{
   Attribute string
   Mdifier string
 }*/
+type item struct{
+  XMLName xml.Name `xml:"items"`
+  BanqueMatXml []banqueMatXml `xml:"mat"`
+}
+type banqueMatXml struct{
+  XMLName xml.Name `xml:"mat"`
+  Id int64    `xml:"id"`
+  Category int64 `xml:"category"`
+  Count int64  `xml:"count"`
+}
 
 func main() {
 
-  doEvery(5*time.Minute,pingApi)
+  //https://api.guildwars2.com/v2/tokeninfo?access_token=65D84368-DA6E-9D4A-8B6E-70C0395432961B8D9A2D-1F1E-4F28-B484-9D0DFE20DBFF
+   //clef := "65D84368-DA6E-9D4A-8B6E-70C0395432961B8D9A2D-1F1E-4F28-B484-9D0DFE20DBFF"
+
+   checkBank(getClef())
+  //doEvery(10*time.Second)
+  //mesItems:=getItems()
+
+  //fmt.Println(mesItems[0])
+
+
 /*
     foo2 := price{}
     getJson("https://api.guildwars2.com/v2/commerce/prices?id=19684", &foo2)
     fmt.Println(foo2.Buys.UnitePrice)*/
 }
 
+func checkBank(key string)  {
+  //var objets items
+  var foo1 []banqueMatXml
+  //var tempo1 []banqueMatXml
+  //var foo2 banqueMatXml
+  fmt.Println("allo ?")
+getJson("https://api.guildwars2.com/v2/account/materials?access_token="+key, &foo1)
+fmt.Println("vous avez : ",len(foo1)," objects dans vos materiaux.")
+  fmt.Println("allo 2 ?")
 
-func doEvery(d time.Duration, f func(time.Time)) {
+writer,_ :=os.OpenFile("./gwitem.xml", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+enc := xml.NewEncoder(writer)
+fmt.Println("test")
+//enc.Indent("  ", "    ")
+fmt.Println(len(foo1))
+/*for i := 0; i < len(foo1); i++ {
+  fmt.Println("bla")
+
+  tempo1[i].Id = foo1[i].Id
+  tempo1[i].Category = foo1[i].Category
+  tempo1[i].Count = foo1[i].Count
+  }*/
+  foo2 := &item{BanqueMatXml:foo1}
+  //objets = append(objets,foo1[i].Id,foo1[i].Category,foo1[i].Count)
+
+  /*foo2.Id = foo1[i].Id
+  foo2.Category = foo1[i].Category
+  foo2.Count = foo1[i].Count*/
+  //fmt.Println(foo2)
+  if err := enc.Encode(foo2); err != nil {
+      fmt.Printf("error: %v\n", err)
+    }
+
+
+
+  var monItem item
+  xmlContent, _ := ioutil.ReadFile("gwitem.xml")
+  err := xml.Unmarshal(xmlContent, &monItem)
+  //err = xml.Unmarshal(xmlContent, &R)
+  //fmt.Println(monItem)
+  if err != nil { panic(err) }
+  itemlen := len(monItem.BanqueMatXml)
+
+    db, err := sql.Open("sqlite3", "./itemgw.db")
+    if err != nil {
+      log.Fatal(err)
+    }
+    defer db.Close()
+
+    for i := 0; i < itemlen; i++ {
+
+      _,err =db.Exec("INSERT INTO bank VALUES (NULL,"+strconv.FormatInt(monItem.BanqueMatXml[i].Id,10)+","+strconv.FormatInt(monItem.BanqueMatXml[i].Category,10)+","+strconv.FormatInt(monItem.BanqueMatXml[i].Count,10)+")")
+
+
+    }
+
+
+}
+
+func getClef()string{
+
+  var clef maClef
+  xmlContent, _ := ioutil.ReadFile("apikey.xml")
+  err := xml.Unmarshal(xmlContent, &clef)
+  //err = xml.Unmarshal(xmlContent, &R)
+  if err != nil { panic(err) }
+  //fmt.Println(primlen)
+  return clef.Id
+}
+
+
+func getItems()  []items{
+url := "https://api.guildwars2.com/v2/items"
+
+var mesItems []items
+
+getJson(url,&mesItems)
+return mesItems
+
+}
+
+
+func doEvery(d time.Duration) {
 	for x := range time.Tick(d) {
-		f(x)
+    p := pingApi(x)
+    addCsv(p)
 	}
 }
 
-func pingApi(t time.Time){
+func pingApi(t time.Time) price{
   url := "./prices.json"
-  foo1 := new(price) // or &Foo{}
-  getJson("https://api.guildwars2.com/v2/commerce/prices?id=19684", foo1)
+  var foo1 price // or &Foo{}
+  fmt.Println(t.Clock)
+  getJson("https://api.guildwars2.com/v2/commerce/prices?id=19684", &foo1)
   //getJson(url,foo1)
   println(foo1.Buys.Unit_price)
   fmt.Println(foo1)
@@ -87,7 +195,7 @@ func pingApi(t time.Time){
 json.Unmarshal(file, &jsontype)
 fmt.Printf("Results: %v\n", jsontype.Id)
 
-addCsv(*foo1)
+//addCsv(*foo1)
 /*d := json.NewDecoder(strings.NewReader(jsontype))
 d.UseNumber()
 var x interface{}
@@ -95,7 +203,7 @@ if err := d.Decode(&x); err != nil {
     log.Fatal(err)
 }
 fmt.Printf("decoded to %#v\n", x)*/
-
+return foo1
 }
 
 func addCsv(p price) {
@@ -106,9 +214,9 @@ func addCsv(p price) {
 		return
 	}
 	w := csv.NewWriter(f)
-	for i := 0; i < 10; i++ {
+	//for i := 0; i < 10; i++ {
   		w.Write([]string{strconv.FormatInt(p.Id,10), strconv.FormatInt(p.Buys.Quantity,10), strconv.FormatInt(p.Buys.Unit_price,10), strconv.FormatInt(p.Sells.Quantity,10), strconv.FormatInt(p.Sells.Unit_price,10)})
-	}
+	//}
 	w.Flush()
 }
 
@@ -124,84 +232,8 @@ func getJson(url string, target interface{}) error {
 }
 
 
-/*{
-"name":"Corps de Koda",
-"type":"Armor",
-"level":80,
-"rarity":"Exotic",
-"vendor_value":370,
-"default_skin":707,
-"game_types":["Activity","Wvw","Dungeon","Pve"],
-"flags":["AccountBound","NoSell","SoulBindOnUse"],
-"restrictions":[],
-"id":18154,
-"chat_link":"[&AgHqRgAA]",
-"icon":"https://render.guildwars2.com/file/5B3D97ACE0B564D69B7B020AE94016D49E01EEFC/218952.png",
-"details":{
-    "type":"Leggings",
-    "weight_class":"Heavy",
-    "defense":242,
-    "infusion_slots":[],
-    "infix_upgrade":{
-        "id":154,
-        "attributes":[{"attribute":"Precision","modifier":64},{"attribute":"Toughness","modifier":64},{"attribute":"ConditionDamage","modifier":90}]
-      },
-    "suffix_item_id":24857,
-    "secondary_suffix_item_id":""
-  }
-}*/
-
-
-/*{"name":"Arc long en bois tendre solide de feu",
-"description":"",
-"type":"Weapon",
-"level":44,
-"rarity":"Masterwork",
-"vendor_value":120,
-"default_skin":3942,
-"game_types":["Activity","Wvw","Dungeon","Pve"],
-"flags":["SoulBindOnUse"],
-"restrictions":[],
-"id":28445,
-"chat_link":"[&AgEdbwAA]",
-"icon":"https://render.guildwars2.com/file/C6110F52DF5AFE0F00A56F9E143E9732176DDDE9/65015.png",
-"details":{
-  "type":"LongBow",
-  "damage_type":"Physical",
-  "min_power":385,
-  "max_power":452,
-  "defense":0,
-  "infusion_slots":[],
-  "infix_upgrade":{
-      "id":142,
-      "attributes":[
-      {"attribute":"Power","modifier":85},
-      {"attribute":"Precision","modifier":61}
-      ]},
-  "suffix_item_id":24547,
-  "secondary_suffix_item_id":""
-  }
-}*/
-
-
-/*{
-"name":"Barre aux baies d'Omnom",
-"type":"Consumable",
-"level":80,
-"rarity":"Fine",
-"vendor_value":33,
-"game_types":["Wvw","Dungeon","Pve"],
-"flags":["NoSell"],
-"restrictions":[],
-"id":12452,
-"chat_link":"[&AgGkMAAA]",
-"icon":"https://render.guildwars2.com/file/6BD5B65FBC6ED450219EC86DD570E59F4DA3791F/433643.png",
-"details":{
-    "type":"Food","
-    duration_ms":1800000,
-    "apply_count":1,
-    "name":"Produit consommable",
-    "icon":"https://render.guildwars2.com/file/779D3F0ABE5B46C09CFC57374DA8CC3A495F291C/436367.png",
-    "description":"Découverte de magie +30%\nOr trouvé sur les monstres +40%\nExpérience à chaque ennemi tué +10%"
-    }
-}*/
+func calcFees(buy int64, sell int64) float64{
+  var profit float64
+  profit = ((float64(sell)*0.85)-float64(buy))
+  return profit
+}

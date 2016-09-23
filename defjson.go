@@ -1,5 +1,30 @@
 package main
 
+import "encoding/xml"
+
+type banqueMat struct{
+  Id int64
+  Category int64
+  Count int64
+}
+
+/*type banqueMatXml struct{
+  XMLName xml.Name `xml:"Mat"`
+  Id int    `xml:"id,attr"`
+  Category int `xml:"category"`
+  Count int  `xml:"count"`
+}*/
+
+type maClef struct{
+  XMLName xml.Name `xml:"clef"`
+  Id string `xml:"id"`
+}
+
+
+type items struct{
+  Id int64
+}
+
 type armor struct{
   Name string
   Description string
