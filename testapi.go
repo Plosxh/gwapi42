@@ -71,8 +71,49 @@ func main() {
 
   //https://api.guildwars2.com/v2/tokeninfo?access_token=65D84368-DA6E-9D4A-8B6E-70C0395432961B8D9A2D-1F1E-4F28-B484-9D0DFE20DBFF
    //clef := "65D84368-DA6E-9D4A-8B6E-70C0395432961B8D9A2D-1F1E-4F28-B484-9D0DFE20DBFF"
+   var choix int
+   var id int
+   var category int
+   var count int
+   var objet int
+   var item_id int
+   fmt.Println("Choisissez : 1-Mettre à jour la Banque, 2-Voir les prix, 3-Tester getUnItem")
+   _,err := fmt.Scanln(&choix)
+   if err != nil {
+     log.Fatal(err)
+   }
 
-   checkBank(getClef())
+
+switch choix {
+case 1:
+  checkBank(getClef())
+
+case 2:
+  db, err := sql.Open("sqlite3", "./itemgw.db")
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer db.Close()
+
+    rows,err :=db.Query("SELECT * FROM Bank")
+    for rows.Next(){
+    err = rows.Scan(&id,&item_id,&category,&count)
+    fmt.Println("ID : ", item_id, " Category : ",category," Count : ",count)
+    if err != nil {
+      log.Fatal(err)
+    }
+  }
+  fmt.Println("Choisissez l'Id d'un objet : ")
+  _,err = fmt.Scanln(&objet)
+
+  getUnItem(objet)
+
+case 3:
+  fmt.Println("Choisissez l'Id d'un objet : ")
+  _,err = fmt.Scanln(&objet)
+
+  getUnItem(objet)
+}
   //doEvery(10*time.Second)
   //mesItems:=getItems()
 
@@ -83,6 +124,20 @@ func main() {
     foo2 := price{}
     getJson("https://api.guildwars2.com/v2/commerce/prices?id=19684", &foo2)
     fmt.Println(foo2.Buys.UnitePrice)*/
+}
+
+
+func getUnItem(I int)  {
+
+  url := "https://api.guildwars2.com/v2/commerce/prices?id="+strconv.Itoa(I)
+  fmt.Println(url)
+
+  var Unitems banqueMat
+
+  getJson(url,&Unitems)
+
+  fmt.Println(Unitems)
+
 }
 
 func checkBank(key string)  {
